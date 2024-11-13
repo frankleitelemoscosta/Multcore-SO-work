@@ -14,17 +14,18 @@ std::string padName(const std::string& name) {
     return name + std::string(16 - name.length(), '#');
 }
 
-void loadProgram(const std::string& inputFile, MainMemory & ram) {
+int loadProgram(const std::string& inputFile, MainMemory & ram) {
     std::ifstream file(inputFile);
     if (!file.is_open()) {
         std::cerr << "Error opening file!" << std::endl;
-        return;
+        exit(1);
     }
 
     std::unordered_map<std::string, int> labelAddresses;
     std::unordered_map<std::string, int> variableAddresses;
     std::vector<std::string> instructions;
-    int address = 0;
+    int address = 0; // se isso for para dizer de onde se começa a escrever na memória, então agora vai ter de mudar 
+    // para que seja possível escrever na memória a partir de um endereço específico
 
     std::string line;
 
@@ -54,7 +55,7 @@ void loadProgram(const std::string& inputFile, MainMemory & ram) {
                 while (std::getline(valueStream, value, ',')) {
                     if (address >= MEMORY_SIZE) {
                         std::cerr << "Memory overflow while allocating vector data." << std::endl;
-                        return;
+                        exit(1);
                     }
                     // Convert the value to int and store it in memory
                     int intValue = std::stoi(value);
@@ -121,6 +122,8 @@ void loadProgram(const std::string& inputFile, MainMemory & ram) {
         }
         memAddress++;
     }
+
+    return address + 1;
 
     // Output the loaded memory for verification
     //for (size_t i = 0; i < address; ++i) {

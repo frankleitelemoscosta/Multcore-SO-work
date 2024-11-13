@@ -4,6 +4,45 @@
 // TODO
 // - Implement print, li, la, lw, sw, j
 
+void Control_Unit::Pipeline(MainMemory &ram){
+    REGISTER_BANK registers;
+    Control_Unit UC;
+    int counterForEnd = 5;
+    int counter = 0;
+    int clock = 0;
+    bool endProgram = false;
+    Instruction_Data data;
+
+    while(counterForEnd > 0){
+            if(counter >= 4 && counterForEnd >= 1){
+                //chamar a instrução de write back
+                UC.Write_Back(UC.data[counter - 4],ram,registers);
+            }
+            if(counter >= 3 && counterForEnd >= 2){
+                //chamar a instrução de memory_acess da unidade de controle
+                UC.Memory_Acess(registers, UC.data[counter - 3],ram);
+            }
+            if(counter >= 2 && counterForEnd >= 3){
+                //chamar a instrução de execução da unidade de controle
+                UC.Execute(registers,UC.data[counter - 2], counter, counterForEnd,endProgram,ram);
+            }
+            if(counter >= 1 && counterForEnd >= 4){
+                //chamar a instrução de decode da unidade de controle
+                UC.Decode(registers, UC.data[counter-1]);
+            }
+            if(counter >= 0 && counterForEnd == 5){
+                //chamar a instrução de fetch da unidade de controle
+                UC.data.push_back(data) ;
+                UC.Fetch(registers, endProgram,ram);
+            }
+            counter += 1;
+            clock += 1;
+            if(endProgram == true){
+                counterForEnd =- 1;
+            }
+        }
+}
+
 uint32_t ConvertToDecimalValue(uint32_t value){
     string bin_str = to_string(value);
         uint32_t decimal_value = 0;       
