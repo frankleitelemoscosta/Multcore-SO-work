@@ -4,7 +4,7 @@
 // TODO
 // - Implement print, li, la, lw, sw, j
 
-void Control_Unit::Pipeline(MainMemory &ram){
+void* Control_Unit::Pipeline(MainMemory &ram,void* arg){
     REGISTER_BANK registers;
     Control_Unit UC;
     int counterForEnd = 5;
@@ -41,6 +41,7 @@ void Control_Unit::Pipeline(MainMemory &ram){
                 counterForEnd =- 1;
             }
         }
+        return nullptr;
 }
 
 uint32_t ConvertToDecimalValue(uint32_t value){

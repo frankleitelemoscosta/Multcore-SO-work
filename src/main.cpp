@@ -2,6 +2,7 @@
 #include"./cpu/CONTROL_UNIT.h"
 #include"./memory/MAINMEMORY.h"
 #include"./loader.h"
+#include<pthread.h>
 
 using namespace std;
 
@@ -21,8 +22,27 @@ int main(int argc, char* argv[]){
         initProgram[i] = loadProgram(argv[i],ram);
     }
 
-    UC.Pipeline(ram);
+    
       
+    pthread_t threads[4];
+    int inputs[4] = {1, 2, 3, 4};
+
+    // Criação das threads
+    for (int i = 0; i < 4; i++) {
+        if (pthread_create(&threads[i], nullptr, UC.Pipeline(ram), &inputs[i]) != 0) {
+            std::cerr << "Erro ao criar thread " << i << std::endl;
+            return 1;
+        }
+    }
+
+    // Join para esperar todas as threads finalizarem
+    for (int i = 0; i < 4; i++) {
+        pthread_join(threads[i], nullptr);
+    }
+
+    std::cout << "Todas as entradas foram processadas." << std::endl;
+    return 0;
+
        
     return 0;
 }

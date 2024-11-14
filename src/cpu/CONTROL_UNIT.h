@@ -66,6 +66,7 @@ struct Control_Unit{
     void Execute(REGISTER_BANK &registers, Instruction_Data &data, int &counter, int &counterForEnd, bool& endProgram, MainMemory& ram);
     void Memory_Acess(REGISTER_BANK &registers,Instruction_Data &data, MainMemory &memory);
     void Write_Back(Instruction_Data &data, MainMemory &memory,REGISTER_BANK &registers);
+    void* Pipeline( MainMemory &ram,void* arg);
 };
 
 #endif
