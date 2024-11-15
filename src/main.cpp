@@ -42,7 +42,4 @@ int main(int argc, char* argv[]){
 
     std::cout << "Todas as entradas foram processadas." << std::endl;
     return 0;
-
-       
-    return 0;
 }
