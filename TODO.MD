@@ -1,0 +1,6 @@
+- [ ] Stack
+- [ ] Map disk to ram
+- [ ] Clock
+- [ ] Interrupt
+- [ ] DMA for the drive?
+- [ ] 

@@ -15,19 +15,20 @@ main:
 	print $t3
 	sub $t4, $t0, $t1	# Subtract
 	print $t4
-	sw $t4, Z		# Store the answer in Z (declared at the bottom)  
+	sw $t4, Z		# Store the answer in Z (declared at the top)  
 	print Z
 
-	la $t0, vetor
-	li $t2, 0 # Contador
-	li $t3, 3 # Tamanho do vetor
+	la $t0, vetor           # Load the adress of the vector
+	li $t2, 0               # Contador
+	li $t3, 3               # Tamanho do vetor
 	j print_vec
+	
 print_vec:
-	print $t0
-	li $t1, 1
-	add $t0, $t1, $t0 # Aumenta o ponteiro do vetor
-	add $t2, $t1 $t2 # Aumenta contador
-	blti $t2 $t3 print_vec
+	print $t0               # print vec pointer
+	li $t1, 1               
+	add $t0, $t1, $t0       # Aumenta o ponteiro do vetor
+	add $t2, $t1 $t2        # Aumenta contador
+	blti $t2 $t3 print_vec  # Continua até o final do vetor
 
 comparacao:
 	li $t1 10
@@ -36,3 +37,4 @@ comparacao:
 	#bne $t1 $t2 diferente
 	#bgt $t1 $t2 maior
 	#blt $t2 $t1 menor
+	
