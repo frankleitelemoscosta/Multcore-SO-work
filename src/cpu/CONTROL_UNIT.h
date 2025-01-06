@@ -25,6 +25,18 @@ struct Instruction_Data{
 
 };
 
+
+struct ControlContext {
+    REGISTER_BANK &registers;
+    MainMemory &ram;
+    mutex *printLock;
+    PCB &process;
+    int &counter;
+    int &counterForEnd;
+    bool &endProgram;
+    bool &endExecution;
+};
+
 struct Control_Unit{
 
     operation op;
@@ -61,14 +73,14 @@ struct Control_Unit{
     string Get_source_Register(const uint32_t instruction);
 
     string Identificacao_instrucao(uint32_t instruction, REGISTER_BANK &registers);
-    void Fetch(REGISTER_BANK &registers, bool &endProgram,MainMemory &ram);
+    void Fetch(ControlContext &context);
     void Decode(REGISTER_BANK &registers, Instruction_Data &data);
     void Execute_Aritmetic_Operation(REGISTER_BANK &registers,Instruction_Data &data);
     void Execute_Operation(REGISTER_BANK &registers,Instruction_Data &data, mutex* printLock, int id);
     void Execute_Loop_Operation(REGISTER_BANK &registers,Instruction_Data &data, int &counter, int &counterForEnd, bool& endProgram, MainMemory& ram); 
-    void Execute(REGISTER_BANK &registers, Instruction_Data &data, int &counter, int &counterForEnd, bool& endProgram, MainMemory& ram, mutex* printLock, int id);
-    void Memory_Acess(REGISTER_BANK &registers,Instruction_Data &data, MainMemory &memory, mutex* printLock, int id);
-    void Write_Back(Instruction_Data &data, MainMemory &memory,REGISTER_BANK &registers);
+    void Execute(Instruction_Data &data, ControlContext &context);
+    void Memory_Acess(Instruction_Data &data, ControlContext &context);
+    void Write_Back(Instruction_Data &data, ControlContext &context);
 };
 
 #endif

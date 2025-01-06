@@ -6,7 +6,7 @@
 
 void* Core(MainMemory &ram, PCB &process,mutex* printLock){
     // load register and state from PCB
-    auto registers = process.regBank;
+    auto &registers = process.regBank;
     
     Control_Unit UC;
     Instruction_Data data;
@@ -17,27 +17,30 @@ void* Core(MainMemory &ram, PCB &process,mutex* printLock){
     bool endProgram = false;
     bool endExecution = false;
 
+    
+    ControlContext context{registers, ram, printLock, process, counter, counterForEnd, endProgram, endExecution};
+    
     while(counterForEnd > 0){
             if(counter >= 4 && counterForEnd >= 1){
                 //chamar a instrução de write back
-                UC.Write_Back(UC.data[counter - 4],ram,registers);
+                UC.Write_Back(UC.data[counter - 4],context);
             }
             if(counter >= 3 && counterForEnd >= 2){
                 //chamar a instrução de memory_acess da unidade de controle
-                UC.Memory_Acess(registers, UC.data[counter - 3],ram,printLock,process.id);
+                UC.Memory_Acess(UC.data[counter - 3],context);
             }
             if(counter >= 2 && counterForEnd >= 3){
                 //chamar a instrução de execução da unidade de controle
-                UC.Execute(registers,UC.data[counter - 2], counter, counterForEnd,endProgram,ram,printLock,process.id);
+                UC.Execute(UC.data[counter - 2], context);
             }
             if(counter >= 1 && counterForEnd >= 4){
                 //chamar a instrução de decode da unidade de controle
-                UC.Decode(registers, UC.data[counter-1]);
+                UC.Decode(context.registers,UC.data[counter-1]);
             }
             if(counter >= 0 && counterForEnd == 5){
                 //chamar a instrução de fetch da unidade de controle
-                UC.data.push_back(data) ;
-                UC.Fetch(registers, endProgram,ram);
+                UC.data.push_back(data);
+                UC.Fetch(context);
             }
             counter += 1;
             clock += 1;
@@ -75,23 +78,23 @@ uint32_t ConvertToDecimalValue(uint32_t value){
 
 //PIPELINE
 
-void Control_Unit::Fetch(REGISTER_BANK &registers, bool &endProgram, MainMemory &ram){
-    const uint32_t instruction = registers.ir.read();
+void Control_Unit::Fetch(ControlContext &context){
+    const uint32_t instruction = context.registers.ir.read();
     
     //registers.ir.write(ram.ReadMem(registers.mar.read()));
     if(instruction == 0b11111100000000000000000000000000)
     {
         //cout << "END FOUND" << endl;
-        endProgram = true;
+        context.endProgram = true;
         return;
     }
-    registers.mar.write(registers.pc.value);
+    context.registers.mar.write(context.registers.pc.value);
     //chamar a memória com a posição do pc e inserir em um registrador
     //registers.ir.write(aqui tem de ser passado a instrução que estiver na RAM);
 
-    registers.ir.write(ram.ReadMem(registers.mar.read()));
+    context.registers.ir.write(context.ram.ReadMem(context.registers.mar.read()));
     //cout << "IR: " << bitset<32>(registers.ir.read()) << endl;
-    registers.pc.write(registers.pc.value += 1);//incrementando o pc 
+    context.registers.pc.write(context.registers.pc.value += 1);//incrementando o pc 
 }
 
 void Control_Unit::Decode(REGISTER_BANK &registers, Instruction_Data &data){
@@ -135,16 +138,16 @@ void Control_Unit::Decode(REGISTER_BANK &registers, Instruction_Data &data){
     return;
 }
 
-void Control_Unit::Execute(REGISTER_BANK &registers,Instruction_Data &data, int &counter, int& counterForEnd,bool& programEnd, MainMemory& ram, mutex* printLock, int id){
+void Control_Unit::Execute(Instruction_Data &data, ControlContext &context){
     /*Daqui tem de ser chamado o que tiver de ser chamado*/
 
     if(data.op == "ADD" ||  data.op == "SUB" || data.op == "MUL" || data.op == "DIV"){
-        Execute_Aritmetic_Operation(registers, data);
+        Execute_Aritmetic_Operation(context.registers, data);
     }else if(data.op == "BEQ" || data.op == "J" || data.op == "BNE" || data.op == "BGT" || data.op == "BGTI" || data.op == "BLT" || data.op == "BLTI"){
-        Execute_Loop_Operation(registers, data, counter,counterForEnd,programEnd,ram);
+        Execute_Loop_Operation(context.registers, data, context.counter,context.counterForEnd,context.endProgram,context.ram);
     }
     else if( data.op == "PRINT" ){
-        Execute_Operation(registers,data,printLock,id);
+        Execute_Operation(context.registers,data,context.printLock,context.process.id);
     }
 
     //cout<<"entrou"<<endl;
@@ -153,7 +156,7 @@ void Control_Unit::Execute(REGISTER_BANK &registers,Instruction_Data &data, int 
     // demais operações realizadas no memory acess
 }
 
-void Control_Unit::Memory_Acess(REGISTER_BANK &registers,Instruction_Data &data, MainMemory &memory, mutex* printLock, int id){
+void Control_Unit::Memory_Acess(Instruction_Data &data, ControlContext &contex){
 
     
     string nameregister = this->map.mp[data.target_register];
@@ -162,25 +165,25 @@ void Control_Unit::Memory_Acess(REGISTER_BANK &registers,Instruction_Data &data,
     if(data.op == "LW"){
         int decimal_value = ConvertToDecimalValue(stoul(data.addressRAMResult));
         //aqui tem de ser feito a leitura na RAM
-        registers.acessoEscritaRegistradores[nameregister](memory.ReadMem(decimal_value));
+        contex.registers.acessoEscritaRegistradores[nameregister](contex.ram.ReadMem(decimal_value));
         //cout << "valor da memória RAM: " << registers.acessoLeituraRegistradores[nameregister]() << endl;
     }
     if(data.op == "LA" || data.op == "LI"){
         int decimal_value = ConvertToDecimalValue(stoul(data.addressRAMResult));
-        registers.acessoEscritaRegistradores[nameregister](decimal_value);
+        contex.registers.acessoEscritaRegistradores[nameregister](decimal_value);
     }
     else if(data.op == "PRINT" && data.target_register == ""){
         int decimalAddr = ConvertToDecimalValue(stoul(data.addressRAMResult));
-        auto value = memory.ReadMem(decimalAddr);
+        auto value = contex.ram.ReadMem(decimalAddr);
         
-        lock_guard<mutex> lock(*printLock);
-        cout << "PROGRAM " << id << ": " << value << endl;
+        lock_guard<mutex> lock(*contex.printLock);
+        cout << "PROGRAM " << contex.process.id << ": " << value << endl;
     }
 
     return;
 }
 
-void Control_Unit::Write_Back(Instruction_Data &data, MainMemory &memory,REGISTER_BANK &registers){
+void Control_Unit::Write_Back(Instruction_Data &data, ControlContext &context){
 
     string nameregister = this->map.mp[data.target_register];
 
@@ -189,7 +192,7 @@ void Control_Unit::Write_Back(Instruction_Data &data, MainMemory &memory,REGISTE
         //aqui tem de ser feito a escrita na RAM
         int decimal_value = ConvertToDecimalValue(stoul(data.addressRAMResult));
         //cout << decimal_value << endl;
-        memory.WriteMem(decimal_value, registers.acessoLeituraRegistradores[nameregister]()) ;
+        context.ram.WriteMem(decimal_value, context.registers.acessoLeituraRegistradores[nameregister]()) ;
         //cout << "valor da memória RAM: " << memory.ReadMem(decimal_value) << endl;
     }
 

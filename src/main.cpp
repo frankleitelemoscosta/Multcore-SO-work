@@ -11,11 +11,11 @@
 #include <memory>
 #include <mutex>
 #include <vector>
-#include <algorithm>
 
 using namespace std;
 
 #define NUM_CORES 4
+#define QUANTUM 10 # 1 clock = 1 quantum
 
 string getFileName(char* file) {
     string filePath(file);
@@ -36,36 +36,33 @@ struct scheduleInfo {
     bool shutdown;
 };
 
+
 void* coreManage(void* arg) {
     scheduleInfo* info = static_cast<scheduleInfo*>(arg);
 
     while (!info->shutdown) {
-        unique_ptr<PCB> currentProcess;
+        PCB* currentProcess = nullptr;
 
         {
             lock_guard<mutex> lock(*info->queueLock);
 
+            
             // Find a ready process
-            auto it = find_if(info->processes->begin(), info->processes->end(),
-                              [](const unique_ptr<PCB>& pcb) { return pcb->state == State::Ready; });
-
-            // if found, remove from queue and set to executing
-            if (it != info->processes->end()) {
-                currentProcess = move(*it);
-                info->processes->erase(it);
-                currentProcess->state = State::Executing;
+            for (auto& pcb : *info->processes) {
+                if (pcb->state == State::Ready) {
+                    currentProcess = pcb.get();
+                    currentProcess->state = State::Executing;
+                    break;
+                }
             }
         }
 
-        
         if (currentProcess) {
             Core(*info->ram, *currentProcess, info->printLock);
 
-            // Put back at queue if not finished
+            lock_guard<mutex> lock(*info->queueLock);
             if (currentProcess->state != State::Finished) {
-                lock_guard<mutex> lock(*info->queueLock);
                 currentProcess->state = State::Ready;
-                info->processes->push_back(move(currentProcess));
             }
         }
     }
@@ -79,21 +76,16 @@ void* scheduler(void* arg) {
     while (!info->shutdown) {
         lock_guard<mutex> lock(*info->queueLock);
 
-        // Check if no processes are running and shutdown if that's the case
-        bool allIdle = true;
+        bool allDone = true;
         for (const auto& pcb : *info->processes) {
-            if (pcb->state == State::Executing) {
-                allIdle = false;
+            if (pcb->state != State::Finished) {
+                allDone = false;
                 break;
             }
         }
-        if (allIdle) {
+        if (allDone) {
             info->shutdown = true;
         }
-
-
-        // Outras ações do scheduler
-        // No futuro utilizar uma fila para cada core baseada numa fila geral
     }
 
     return nullptr;
@@ -133,7 +125,7 @@ int main(int argc, char* argv[]) {
         auto pcb = make_unique<PCB>();
         pcb->baseAddr = initProgram[i - 1];
         pcb->finalAddr = initProgram[i];
-        pcb->quantum = 500;
+        pcb->quantum = QUANTUM;
         pcb->id = i;
         pcb->state = State::Ready;
         scheduleInfo->processes->push_back(move(pcb));
