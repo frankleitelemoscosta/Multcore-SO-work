@@ -5,8 +5,10 @@ set(CMAKE_CXX_STANDARD 20)
 
 add_executable(CustomVonNeumannMachine
         src/main.cpp
-        src/loader.cpp
-        src/loader.h
+        src/loader/loader.cpp
+        src/loader/loader.h
+        src/assembler/assembler.h
+        src/assembler/assembler.cpp
         src/cpu/CONTROL_UNIT.cpp
         src/cpu/CONTROL_UNIT.h
         src/cpu/REGISTER.cpp
@@ -21,7 +23,4 @@ add_executable(CustomVonNeumannMachine
         src/memory/MAINMEMORY.cpp
         src/memory/SECONDARY_MEMORY.cpp
         src/memory/SECONDARY_MEMORY.h
-)
-add_executable(Assembler
-        assembler/assembler.cpp
 )

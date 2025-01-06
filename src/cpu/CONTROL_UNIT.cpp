@@ -1,17 +1,21 @@
 #include "CONTROL_UNIT.h"
+#include "../PCB.h"
 #include <bitset>
+#include <string>
 
-// TODO
-// - Implement print, li, la, lw, sw, j
 
-void* Control_Unit::Pipeline(MainMemory &ram,void* arg){
-    REGISTER_BANK registers;
+void* Core(MainMemory &ram, PCB &process,mutex* printLock){
+    // load register and state from PCB
+    auto registers = process.regBank;
+    
     Control_Unit UC;
+    Instruction_Data data;
+    
+    int clock = 0;
     int counterForEnd = 5;
     int counter = 0;
-    int clock = 0;
     bool endProgram = false;
-    Instruction_Data data;
+    bool endExecution = false;
 
     while(counterForEnd > 0){
             if(counter >= 4 && counterForEnd >= 1){
@@ -20,11 +24,11 @@ void* Control_Unit::Pipeline(MainMemory &ram,void* arg){
             }
             if(counter >= 3 && counterForEnd >= 2){
                 //chamar a instrução de memory_acess da unidade de controle
-                UC.Memory_Acess(registers, UC.data[counter - 3],ram);
+                UC.Memory_Acess(registers, UC.data[counter - 3],ram,printLock,process.id);
             }
             if(counter >= 2 && counterForEnd >= 3){
                 //chamar a instrução de execução da unidade de controle
-                UC.Execute(registers,UC.data[counter - 2], counter, counterForEnd,endProgram,ram);
+                UC.Execute(registers,UC.data[counter - 2], counter, counterForEnd,endProgram,ram,printLock,process.id);
             }
             if(counter >= 1 && counterForEnd >= 4){
                 //chamar a instrução de decode da unidade de controle
@@ -37,12 +41,25 @@ void* Control_Unit::Pipeline(MainMemory &ram,void* arg){
             }
             counter += 1;
             clock += 1;
-            if(endProgram == true){
-                counterForEnd =- 1;
+
+            if(clock >= process.quantum || endProgram == true){
+                endExecution = true;
             }
-        }
-        return nullptr;
+            
+            if(endExecution == true){
+                counterForEnd -= 1;
+            }
+    }
+
+    if(endProgram){
+        process.state = State::Finished;
+    }    
+    
+    return nullptr;
 }
+
+
+using namespace std;
 
 uint32_t ConvertToDecimalValue(uint32_t value){
     string bin_str = to_string(value);
@@ -60,7 +77,8 @@ uint32_t ConvertToDecimalValue(uint32_t value){
 
 void Control_Unit::Fetch(REGISTER_BANK &registers, bool &endProgram, MainMemory &ram){
     const uint32_t instruction = registers.ir.read();
-    registers.ir.write(ram.ReadMem(registers.mar.read()));
+    
+    //registers.ir.write(ram.ReadMem(registers.mar.read()));
     if(instruction == 0b11111100000000000000000000000000)
     {
         //cout << "END FOUND" << endl;
@@ -117,7 +135,7 @@ void Control_Unit::Decode(REGISTER_BANK &registers, Instruction_Data &data){
     return;
 }
 
-void Control_Unit::Execute(REGISTER_BANK &registers,Instruction_Data &data, int &counter, int& counterForEnd,bool& programEnd, MainMemory& ram){
+void Control_Unit::Execute(REGISTER_BANK &registers,Instruction_Data &data, int &counter, int& counterForEnd,bool& programEnd, MainMemory& ram, mutex* printLock, int id){
     /*Daqui tem de ser chamado o que tiver de ser chamado*/
 
     if(data.op == "ADD" ||  data.op == "SUB" || data.op == "MUL" || data.op == "DIV"){
@@ -126,7 +144,7 @@ void Control_Unit::Execute(REGISTER_BANK &registers,Instruction_Data &data, int 
         Execute_Loop_Operation(registers, data, counter,counterForEnd,programEnd,ram);
     }
     else if( data.op == "PRINT" ){
-        Execute_Operation(registers,data);
+        Execute_Operation(registers,data,printLock,id);
     }
 
     //cout<<"entrou"<<endl;
@@ -135,7 +153,7 @@ void Control_Unit::Execute(REGISTER_BANK &registers,Instruction_Data &data, int 
     // demais operações realizadas no memory acess
 }
 
-void Control_Unit::Memory_Acess(REGISTER_BANK &registers,Instruction_Data &data, MainMemory &memory){
+void Control_Unit::Memory_Acess(REGISTER_BANK &registers,Instruction_Data &data, MainMemory &memory, mutex* printLock, int id){
 
     
     string nameregister = this->map.mp[data.target_register];
@@ -146,13 +164,17 @@ void Control_Unit::Memory_Acess(REGISTER_BANK &registers,Instruction_Data &data,
         //aqui tem de ser feito a leitura na RAM
         registers.acessoEscritaRegistradores[nameregister](memory.ReadMem(decimal_value));
         //cout << "valor da memória RAM: " << registers.acessoLeituraRegistradores[nameregister]() << endl;
-    }if(data.op == "LA" || data.op == "LI"){
+    }
+    if(data.op == "LA" || data.op == "LI"){
         int decimal_value = ConvertToDecimalValue(stoul(data.addressRAMResult));
         registers.acessoEscritaRegistradores[nameregister](decimal_value);
     }
     else if(data.op == "PRINT" && data.target_register == ""){
-        auto value = memory.ReadMem(stoul(data.addressRAMResult));
-        //cout << "PROGRAM PRINT: " << value << endl;
+        int decimalAddr = ConvertToDecimalValue(stoul(data.addressRAMResult));
+        auto value = memory.ReadMem(decimalAddr);
+        
+        lock_guard<mutex> lock(*printLock);
+        cout << "PROGRAM " << id << ": " << value << endl;
     }
 
     return;
@@ -415,11 +437,12 @@ void Control_Unit::Execute_Loop_Operation(REGISTER_BANK &registers,Instruction_D
     return;
 }
 
-void Control_Unit::Execute_Operation(REGISTER_BANK &registers,Instruction_Data &data){
+void Control_Unit::Execute_Operation(REGISTER_BANK &registers,Instruction_Data &data, mutex* printLock, int id){
     string nameregister = this->map.mp[data.target_register];
 
     if(data.op == "PRINT" && data.target_register != ""){
-        cout << "PROGRAM PRINT: " << registers.acessoLeituraRegistradores[nameregister]() << endl;
+        lock_guard<mutex> lock(*printLock);
+        cout << "PROGRAM " << id << ": " << registers.acessoLeituraRegistradores[nameregister]() << endl;
     }
 }
 

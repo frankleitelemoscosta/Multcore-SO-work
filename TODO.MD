@@ -1,6 +1,14 @@
-- [ ] Stack
-- [ ] Map disk to ram
-- [ ] Clock
-- [ ] Interrupt
-- [ ] DMA for the drive?
-- [ ] 
+- [x] Pthread pass var to each thread
+- [x] Timer de execução
+- [x] Quantum de cada processo e interrupção
+- [x] PCB - pronto, bloqueado e executando
+- [x] Base do escalonador, preempção e troca de processos
+- [ ] Criar instrução read
+- [ ] Fazer o I/O ser oculpado por apenas um processo por vez (mutex compartilhado entre eles) e fazer a troca
+de processos enquanto o I/O requisitado está bloqueado
+
+
+"O ciclo de vida do sistema operacional será implementado utilizando múltiplas
+threads, permitindo que tarefas como verificação de solicitações de recursos
+e gerenciamento de processos prontos/executando sejam realizadas de forma
+independente e em paralelo."

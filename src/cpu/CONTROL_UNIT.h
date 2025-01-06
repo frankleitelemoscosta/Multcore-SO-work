@@ -1,18 +1,20 @@
 #ifndef CONTROL_UNIT_H
 #define CONTROL_UNIT_H
 
-#include <iostream>
 #include "ALU.h"
 #include "REGISTER_BANK.h"
-#include <string>
-#include <vector>
 #include"HashRegister.h"
 #include"unordered_map"
 #include"../memory/MAINMEMORY.h"
+#include"../PCB.h"
+#include <string>
+#include <vector>
 #include <cstdint>
+#include <iostream>
 #include <cmath>
+#include <mutex>
 
-using namespace std;
+void* Core(MainMemory &ram, PCB &process, mutex * printLock);
 
 struct Instruction_Data{
     string source_register;
@@ -20,6 +22,7 @@ struct Instruction_Data{
     string destination_register;
     string op;
     string addressRAMResult;
+
 };
 
 struct Control_Unit{
@@ -61,12 +64,11 @@ struct Control_Unit{
     void Fetch(REGISTER_BANK &registers, bool &endProgram,MainMemory &ram);
     void Decode(REGISTER_BANK &registers, Instruction_Data &data);
     void Execute_Aritmetic_Operation(REGISTER_BANK &registers,Instruction_Data &data);
-    void Execute_Operation(REGISTER_BANK &registers,Instruction_Data &data);
+    void Execute_Operation(REGISTER_BANK &registers,Instruction_Data &data, mutex* printLock, int id);
     void Execute_Loop_Operation(REGISTER_BANK &registers,Instruction_Data &data, int &counter, int &counterForEnd, bool& endProgram, MainMemory& ram); 
-    void Execute(REGISTER_BANK &registers, Instruction_Data &data, int &counter, int &counterForEnd, bool& endProgram, MainMemory& ram);
-    void Memory_Acess(REGISTER_BANK &registers,Instruction_Data &data, MainMemory &memory);
+    void Execute(REGISTER_BANK &registers, Instruction_Data &data, int &counter, int &counterForEnd, bool& endProgram, MainMemory& ram, mutex* printLock, int id);
+    void Memory_Acess(REGISTER_BANK &registers,Instruction_Data &data, MainMemory &memory, mutex* printLock, int id);
     void Write_Back(Instruction_Data &data, MainMemory &memory,REGISTER_BANK &registers);
-    void* Pipeline( MainMemory &ram,void* arg);
 };
 
 #endif
