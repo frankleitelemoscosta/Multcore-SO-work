@@ -5,6 +5,7 @@
 #include "./assembler/assembler.h"
 #include "./PCB.h"
 
+#include <unistd.h>
 #include <cstdlib>
 #include <pthread.h>
 #include <filesystem>
@@ -14,8 +15,9 @@
 
 using namespace std;
 
-#define NUM_CORES 4
-#define QUANTUM 10 # 1 clock = 1 quantum
+#define NUM_CORES 2
+#define QUANTUM 10 
+// 1 clock = 1 quantum
 
 string getFileName(char* file) {
     string filePath(file);
@@ -27,15 +29,6 @@ string getFileName(char* file) {
     }
     return fileName;
 }
-
-struct scheduleInfo {
-    MainMemory* ram;
-    vector<unique_ptr<PCB>>* processes;
-    mutex* queueLock;
-    mutex* printLock;
-    bool shutdown;
-};
-
 
 void* coreManage(void* arg) {
     scheduleInfo* info = static_cast<scheduleInfo*>(arg);
@@ -49,7 +42,7 @@ void* coreManage(void* arg) {
             
             // Find a ready process
             for (auto& pcb : *info->processes) {
-                if (pcb->state == State::Ready) {
+                if (pcb->state == State::Ready && pcb->state != State::Blocked) {
                     currentProcess = pcb.get();
                     currentProcess->state = State::Executing;
                     break;
@@ -58,10 +51,10 @@ void* coreManage(void* arg) {
         }
 
         if (currentProcess) {
-            Core(*info->ram, *currentProcess, info->printLock);
+            Core(*info->ram, *currentProcess, info->ioRequests,info->printLock);
 
             lock_guard<mutex> lock(*info->queueLock);
-            if (currentProcess->state != State::Finished) {
+            if (currentProcess->state == State::Executing) {
                 currentProcess->state = State::Ready;
             }
         }
@@ -77,14 +70,48 @@ void* scheduler(void* arg) {
         lock_guard<mutex> lock(*info->queueLock);
 
         bool allDone = true;
+        
         for (const auto& pcb : *info->processes) {
             if (pcb->state != State::Finished) {
                 allDone = false;
                 break;
             }
         }
+
+        if(!info->ioRequests->empty()){
+            allDone = false;
+        }
+                
         if (allDone) {
+            //cout << "Shutdown" << endl;
             info->shutdown = true;
+        }
+    }
+
+    return nullptr;
+}
+
+
+void * resourceManager(void * arg){
+    scheduleInfo* info = static_cast<scheduleInfo*>(arg);
+    
+   
+    while (!info->shutdown) {
+
+        if(!info->ioRequests->empty()){
+            
+            auto req = move(info->ioRequests->front());
+            info->printLock = true;
+
+            info->ioRequests->erase(info->ioRequests->begin());
+
+            // Simulate a 0.1 ms delay
+            usleep(100000);
+
+            cout << "Program " << req->process->id << ": " << req->msg << std::endl;          
+             
+            req->process->state = State::Ready;
+            info->printLock = false;
         }
     }
 
@@ -117,9 +144,10 @@ int main(int argc, char* argv[]) {
     auto scheduleInfo = make_unique<struct scheduleInfo>();
     scheduleInfo->ram = &ram;
     scheduleInfo->processes = new vector<unique_ptr<PCB>>();
+    scheduleInfo->ioRequests = new vector<unique_ptr<ioRequest>>();
     scheduleInfo->queueLock = new mutex();
-    scheduleInfo->printLock = new mutex();
     scheduleInfo->shutdown = false;
+    scheduleInfo->printLock = false;
 
     for (int i = 1; i < argc; i++) {
         auto pcb = make_unique<PCB>();
@@ -131,7 +159,7 @@ int main(int argc, char* argv[]) {
         scheduleInfo->processes->push_back(move(pcb));
     }
 
-    pthread_t threads[NUM_CORES + 1];
+    pthread_t threads[NUM_CORES + 2];
 
     for (int i = 0; i < NUM_CORES; ++i) {
         if (pthread_create(&threads[i], nullptr, coreManage, scheduleInfo.get()) != 0) {
@@ -144,9 +172,13 @@ int main(int argc, char* argv[]) {
         cerr << "Error creating scheduler thread" << endl;
         return 1;
     }
+    if (pthread_create(&threads[NUM_CORES +1], nullptr, resourceManager, scheduleInfo.get()) != 0) {
+        cerr << "Error creating I/O manage thread" << endl;
+        return 1;
+    }
 
     // Join threads
-    for (int i = 0; i < NUM_CORES + 1; i++) {
+    for (int i = 0; i < NUM_CORES + 2; i++) {
         pthread_join(threads[i], nullptr);
     }
 

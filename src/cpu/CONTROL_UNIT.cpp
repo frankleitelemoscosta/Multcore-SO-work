@@ -1,10 +1,12 @@
 #include "CONTROL_UNIT.h"
 #include "../PCB.h"
 #include <bitset>
+#include <memory>
 #include <string>
+#include <vector>
 
 
-void* Core(MainMemory &ram, PCB &process,mutex* printLock){
+void* Core(MainMemory &ram, PCB &process, vector<unique_ptr<ioRequest>>* ioRequests, bool &printLock){
     // load register and state from PCB
     auto &registers = process.regBank;
     
@@ -16,46 +18,45 @@ void* Core(MainMemory &ram, PCB &process,mutex* printLock){
     int counter = 0;
     bool endProgram = false;
     bool endExecution = false;
-
     
-    ControlContext context{registers, ram, printLock, process, counter, counterForEnd, endProgram, endExecution};
+    ControlContext context{registers, ram, *ioRequests, printLock, process, counter, counterForEnd, endProgram, endExecution};
     
-    while(counterForEnd > 0){
-            if(counter >= 4 && counterForEnd >= 1){
-                //chamar a instrução de write back
-                UC.Write_Back(UC.data[counter - 4],context);
-            }
-            if(counter >= 3 && counterForEnd >= 2){
-                //chamar a instrução de memory_acess da unidade de controle
-                UC.Memory_Acess(UC.data[counter - 3],context);
-            }
-            if(counter >= 2 && counterForEnd >= 3){
-                //chamar a instrução de execução da unidade de controle
-                UC.Execute(UC.data[counter - 2], context);
-            }
-            if(counter >= 1 && counterForEnd >= 4){
-                //chamar a instrução de decode da unidade de controle
-                UC.Decode(context.registers,UC.data[counter-1]);
-            }
-            if(counter >= 0 && counterForEnd == 5){
-                //chamar a instrução de fetch da unidade de controle
-                UC.data.push_back(data);
-                UC.Fetch(context);
-            }
-            counter += 1;
-            clock += 1;
+    while(context.counterForEnd > 0){
+        if(context.counter >= 4 && context.counterForEnd >= 1){
+            //chamar a instrução de write back
+            UC.Write_Back(UC.data[context.counter - 4],context);
+        }
+        if(context.counter >= 3 && context.counterForEnd >= 2){
+            //chamar a instrução de memory_acess da unidade de controle
+            UC.Memory_Acess(UC.data[context.counter - 3],context);
+        }
+        if(context.counter >= 2 && context.counterForEnd >= 3){
+            //chamar a instrução de execução da unidade de controle
+            UC.Execute(UC.data[context.counter - 2], context);
+        }
+        if(context.counter >= 1 && context.counterForEnd >= 4){
+            //chamar a instrução de decode da unidade de controle
+            UC.Decode(context.registers,UC.data[context.counter-1]);
+        }
+        if(context.counter >= 0 && context.counterForEnd == 5){
+            //chamar a instrução de fetch da unidade de controle
+            UC.data.push_back(data);
+            UC.Fetch(context);
+        }
+        context.counter += 1;
+        clock += 1;
 
-            if(clock >= process.quantum || endProgram == true){
-                endExecution = true;
-            }
-            
-            if(endExecution == true){
-                counterForEnd -= 1;
-            }
+        if(clock >= process.quantum || context.endProgram == true){
+            context.endExecution = true;
+        }
+        
+        if(context.endExecution == true){
+            context.counterForEnd -= 1;
+        }
     }
 
-    if(endProgram){
-        process.state = State::Finished;
+    if(context.endProgram){
+        context.process.state = State::Finished;
     }    
     
     return nullptr;
@@ -147,7 +148,7 @@ void Control_Unit::Execute(Instruction_Data &data, ControlContext &context){
         Execute_Loop_Operation(context.registers, data, context.counter,context.counterForEnd,context.endProgram,context.ram);
     }
     else if( data.op == "PRINT" ){
-        Execute_Operation(context.registers,data,context.printLock,context.process.id);
+        Execute_Operation(data,context);
     }
 
     //cout<<"entrou"<<endl;
@@ -156,7 +157,7 @@ void Control_Unit::Execute(Instruction_Data &data, ControlContext &context){
     // demais operações realizadas no memory acess
 }
 
-void Control_Unit::Memory_Acess(Instruction_Data &data, ControlContext &contex){
+void Control_Unit::Memory_Acess(Instruction_Data &data, ControlContext &context){
 
     
     string nameregister = this->map.mp[data.target_register];
@@ -165,19 +166,26 @@ void Control_Unit::Memory_Acess(Instruction_Data &data, ControlContext &contex){
     if(data.op == "LW"){
         int decimal_value = ConvertToDecimalValue(stoul(data.addressRAMResult));
         //aqui tem de ser feito a leitura na RAM
-        contex.registers.acessoEscritaRegistradores[nameregister](contex.ram.ReadMem(decimal_value));
+        context.registers.acessoEscritaRegistradores[nameregister](context.ram.ReadMem(decimal_value));
         //cout << "valor da memória RAM: " << registers.acessoLeituraRegistradores[nameregister]() << endl;
     }
     if(data.op == "LA" || data.op == "LI"){
         int decimal_value = ConvertToDecimalValue(stoul(data.addressRAMResult));
-        contex.registers.acessoEscritaRegistradores[nameregister](decimal_value);
+        context.registers.acessoEscritaRegistradores[nameregister](decimal_value);
     }
     else if(data.op == "PRINT" && data.target_register == ""){
         int decimalAddr = ConvertToDecimalValue(stoul(data.addressRAMResult));
-        auto value = contex.ram.ReadMem(decimalAddr);
+        auto value = context.ram.ReadMem(decimalAddr);
         
-        lock_guard<mutex> lock(*contex.printLock);
-        cout << "PROGRAM " << contex.process.id << ": " << value << endl;
+        auto req = make_unique<ioRequest>();
+        req->msg = to_string(value);
+        req->process = &context.process;
+        context.ioRequests.push_back(move(req));
+        
+        if(context.printLock){
+            context.process.state = State::Blocked;
+            context.endExecution = true;
+        }
     }
 
     return;
@@ -440,12 +448,20 @@ void Control_Unit::Execute_Loop_Operation(REGISTER_BANK &registers,Instruction_D
     return;
 }
 
-void Control_Unit::Execute_Operation(REGISTER_BANK &registers,Instruction_Data &data, mutex* printLock, int id){
+void Control_Unit::Execute_Operation(Instruction_Data &data, ControlContext &context){
     string nameregister = this->map.mp[data.target_register];
 
     if(data.op == "PRINT" && data.target_register != ""){
-        lock_guard<mutex> lock(*printLock);
-        cout << "PROGRAM " << id << ": " << registers.acessoLeituraRegistradores[nameregister]() << endl;
+        auto value = context.registers.acessoLeituraRegistradores[nameregister]();
+        auto req = make_unique<ioRequest>();
+        req->msg = to_string(value);
+        req->process = &context.process;
+        context.ioRequests.push_back(move(req));
+        
+        if(context.printLock){
+            context.process.state = State::Blocked;
+            context.endExecution = true;
+        }
     }
 }
 

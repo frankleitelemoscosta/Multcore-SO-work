@@ -14,7 +14,7 @@
 #include <cmath>
 #include <mutex>
 
-void* Core(MainMemory &ram, PCB &process, mutex * printLock);
+void* Core(MainMemory &ram, PCB &process, vector<unique_ptr<ioRequest>>* ioRequests, bool &printLock);
 
 struct Instruction_Data{
     string source_register;
@@ -29,7 +29,8 @@ struct Instruction_Data{
 struct ControlContext {
     REGISTER_BANK &registers;
     MainMemory &ram;
-    mutex *printLock;
+    vector<unique_ptr<ioRequest>> &ioRequests;
+    bool &printLock;
     PCB &process;
     int &counter;
     int &counterForEnd;
@@ -76,7 +77,7 @@ struct Control_Unit{
     void Fetch(ControlContext &context);
     void Decode(REGISTER_BANK &registers, Instruction_Data &data);
     void Execute_Aritmetic_Operation(REGISTER_BANK &registers,Instruction_Data &data);
-    void Execute_Operation(REGISTER_BANK &registers,Instruction_Data &data, mutex* printLock, int id);
+    void Execute_Operation(Instruction_Data &data,ControlContext &context);
     void Execute_Loop_Operation(REGISTER_BANK &registers,Instruction_Data &data, int &counter, int &counterForEnd, bool& endProgram, MainMemory& ram); 
     void Execute(Instruction_Data &data, ControlContext &context);
     void Memory_Acess(Instruction_Data &data, ControlContext &context);
