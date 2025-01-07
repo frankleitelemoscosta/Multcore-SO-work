@@ -1,10 +1,8 @@
 # INTRODUÇÃO
 
-O arquivo que está a ser lido, é referente a documentação do 1º Trabalho prático da disciplina de Sistemas Operacionais,
+O arquivo que está a ser lido, é referente a documentação do 2º Trabalho prático da disciplina de Sistemas Operacionais,
 lecionada pelo Professor Mestre, Michel Pires Dias, do 6ªPeriodo regular, de Engenharia de Computação do CEFET-MG Campus
-Divinópolis, nele, tem como principal ideia, o desenvolvimento de um processador que utilize-se da arquitetura de Von
-Neumann, e é baseado na arquitetura MIPS, porém, o CPU implementado não possui todas funcionalidades de um processador
-MIPS, de forma, que é um CPU mais simplificado possível
+Divinópolis, nele, tem como principal ideia, o desenvolvimento avançado da arquitetura para uma arquitetura multicore e incluir as bases de um sistema operacional moderno, sendo isso a preempção e controle de recursos.
 
 # CONTEXTO
 
@@ -293,7 +291,7 @@ blt $t0 $t3 loop
     <table border="1">
       <tr><td><u>cmake .</u></td> <td>Apaga a última compilação realizada contida na pasta build</td></tr>
       <tr><td><u>make</u></td> <td>Executa a compilação do programa utilizando o gcc, e o resultado vai para a pasta build.</td></tr>
-      <tr><td><u>./CustomVonNeumannMachine testes/example.asm testes/example2.asm </u></td> <td>Executa com programa da pasta teste </td></tr>
+      <tr><td><u>./CustomVonNeumannMachine testes/example.asm testes/example2.asm </u></td> <td>Executa os programas da pasta teste </td></tr>
     </table>
 </p>
 
