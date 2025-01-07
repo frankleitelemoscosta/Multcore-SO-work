@@ -124,7 +124,7 @@ int loadProgram(std::string inputFile, MainMemory & ram, int initialAddress) {
         }
         memAddress++;
     }
-
+    
     return address + 1;
 
 }

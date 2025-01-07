@@ -156,6 +156,7 @@ int main(int argc, char* argv[]) {
         pcb->quantum = QUANTUM;
         pcb->id = i;
         pcb->state = State::Ready;
+        pcb->regBank.pc.value = initProgram[i - 1];
         scheduleInfo->processes->push_back(move(pcb));
     }
 
