@@ -12,6 +12,7 @@
 #include <memory>
 #include <mutex>
 #include <vector>
+#include <algorithm>
 
 using namespace std;
 
@@ -83,6 +84,10 @@ void* scheduler(void* arg) {
         for (const auto& pcb : *info->processes) {
             if (pcb->state != State::Finished) {
                 allDone = false;
+                //aqui a fila deve ser reorganizada pela ordem de prioridade
+                sort(pcb->baseAddr, pcb->finalAddr, [](const auto& a, const auto& b) {
+                    return a->scaling < b->scaling;
+                });
                 break;
             }
         }
