@@ -14,6 +14,11 @@ enum class State {
     Finished
 };
 
+enum class Scalling{
+    FCFS = 1,
+    Priority = 2
+};
+
 struct PCB{
   unsigned int quantum;
   REGISTER_BANK regBank;
@@ -21,6 +26,7 @@ struct PCB{
   int baseAddr;
   int finalAddr;
   int id;
+  Scalling scaling;
 };
 
 struct ioRequest {

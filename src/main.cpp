@@ -50,11 +50,20 @@ void* coreManage(void* arg) {
             }
         }
 
-        if (currentProcess) {
+
+        if(currentProcess && currentProcess->scaling == Scalling::FCFS){
             Core(*info->ram, *currentProcess, info->ioRequests,info->printLock);
 
             lock_guard<mutex> lock(*info->queueLock);
             if (currentProcess->state == State::Executing) {
+                currentProcess->state = State::Ready;
+            }
+        }
+        else if (currentProcess && currentProcess->scaling == Scalling::Priority) {
+            int clock = Core(*info->ram, *currentProcess, info->ioRequests,info->printLock);
+
+            lock_guard<mutex> lock(*info->queueLock);
+            if (currentProcess->state == State::Executing && clock > 10) {
                 currentProcess->state = State::Ready;
             }
         }
@@ -86,6 +95,8 @@ void* scheduler(void* arg) {
             //cout << "Shutdown" << endl;
             info->shutdown = true;
         }
+
+
     }
 
     return nullptr;

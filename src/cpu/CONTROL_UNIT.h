@@ -14,7 +14,7 @@
 #include <cmath>
 #include <mutex>
 
-void* Core(MainMemory &ram, PCB &process, vector<unique_ptr<ioRequest>>* ioRequests, bool &printLock);
+int Core(MainMemory &ram, PCB &process, vector<unique_ptr<ioRequest>>* ioRequests, bool &printLock);
 
 struct Instruction_Data{
     string source_register;

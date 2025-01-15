@@ -6,7 +6,7 @@
 #include <vector>
 
 
-void* Core(MainMemory &ram, PCB &process, vector<unique_ptr<ioRequest>>* ioRequests, bool &printLock){
+int Core(MainMemory &ram, PCB &process, vector<unique_ptr<ioRequest>>* ioRequests, bool &printLock){
     // load register and state from PCB
     auto &registers = process.regBank;
     
@@ -59,7 +59,7 @@ void* Core(MainMemory &ram, PCB &process, vector<unique_ptr<ioRequest>>* ioReque
         context.process.state = State::Finished;
     }    
     
-    return nullptr;
+    return clock;
 }
 
 
