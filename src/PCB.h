@@ -14,19 +14,23 @@ enum class State {
     Finished
 };
 
-enum class Scalling{
+enum class Schedulling{
     FCFS = 1,
-    Priority = 2
+    Priority = 2,
+    Random = 3,
+    SJF = 4
 };
 
 struct PCB{
-  unsigned int quantum;
+  int quantum;
+  int timestamp;
+  int size;
   REGISTER_BANK regBank;
   State state;
   int baseAddr;
   int finalAddr;
   int id;
-  Scalling scaling;
+  int priority;
 };
 
 struct ioRequest {
@@ -41,6 +45,7 @@ struct scheduleInfo {
     vector<unique_ptr<ioRequest>>* ioRequests;
     bool shutdown;
     bool printLock;
+    Schedulling schedulling;
 };
 
 #endif

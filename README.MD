@@ -291,7 +291,15 @@ blt $t0 $t3 loop
     <table border="1">
       <tr><td><u>cmake .</u></td> <td>Apaga a última compilação realizada contida na pasta build</td></tr>
       <tr><td><u>make</u></td> <td>Executa a compilação do programa utilizando o gcc, e o resultado vai para a pasta build.</td></tr>
-      <tr><td><u>./CustomVonNeumannMachine testes/example.asm testes/example2.asm </u></td> <td>Executa os programas da pasta teste </td></tr>
+      <tr><td><u>./CustomVonNeumannMachine testes/example.asm testes/example2.asm testes/example3.asm testes/small.asm <tipo de escalonamento> </u></td> <td>Executa os programas da pasta teste </td></tr>
+    </table>
+   
+    <i>Códigos para cada tipo de escalonamento:<i>
+    <table border="1">
+      <tr><td><u>1</u></td> <td>FCFS</td></tr>
+      <tr><td><u>2</u></td> <td>Prioridade</td></tr>
+      <tr><td><u>3</u></td> <td>Randômico </td></tr>
+      <tr><td><u>4</u></td> <td>SJF </td></tr>
     </table>
 </p>
 

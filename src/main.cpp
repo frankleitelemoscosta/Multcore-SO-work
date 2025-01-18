@@ -7,18 +7,20 @@
 
 #include <unistd.h>
 #include <cstdlib>
+#include <time.h>
 #include <pthread.h>
 #include <filesystem>
 #include <memory>
 #include <mutex>
 #include <vector>
 #include <algorithm>
+#include <random>
 
 using namespace std;
 
 #define NUM_CORES 2
-#define QUANTUM 10 
-// 1 clock = 1 quantum
+#define QUANTUM 20 
+// 1 instrução = 1 quantum
 
 string getFileName(char* file) {
     string filePath(file);
@@ -39,32 +41,23 @@ void* coreManage(void* arg) {
 
         {
             lock_guard<mutex> lock(*info->queueLock);
-
-            
-            // Find a ready process
+             // Find a ready process
             for (auto& pcb : *info->processes) {
                 if (pcb->state == State::Ready && pcb->state != State::Blocked) {
                     currentProcess = pcb.get();
                     currentProcess->state = State::Executing;
                     break;
                 }
-            }
+            }        
         }
 
 
-        if(currentProcess && currentProcess->scaling == Scalling::FCFS){
-            Core(*info->ram, *currentProcess, info->ioRequests,info->printLock);
+        if(currentProcess){
+            currentProcess->timestamp += Core(*info->ram, *currentProcess, info->ioRequests,info->printLock);
+            
 
             lock_guard<mutex> lock(*info->queueLock);
             if (currentProcess->state == State::Executing) {
-                currentProcess->state = State::Ready;
-            }
-        }
-        else if (currentProcess && currentProcess->scaling == Scalling::Priority) {
-            int clock = Core(*info->ram, *currentProcess, info->ioRequests,info->printLock);
-
-            lock_guard<mutex> lock(*info->queueLock);
-            if (currentProcess->state == State::Executing && clock > 10) {
                 currentProcess->state = State::Ready;
             }
         }
@@ -75,6 +68,8 @@ void* coreManage(void* arg) {
 
 void* scheduler(void* arg) {
     scheduleInfo* info = static_cast<scheduleInfo*>(arg);
+    random_device rd;
+    mt19937 g(rd());
 
     while (!info->shutdown) {
         lock_guard<mutex> lock(*info->queueLock);
@@ -84,10 +79,6 @@ void* scheduler(void* arg) {
         for (const auto& pcb : *info->processes) {
             if (pcb->state != State::Finished) {
                 allDone = false;
-                //aqui a fila deve ser reorganizada pela ordem de prioridade
-                sort(pcb->baseAddr, pcb->finalAddr, [](const auto& a, const auto& b) {
-                    return a->scaling < b->scaling;
-                });
                 break;
             }
         }
@@ -102,6 +93,35 @@ void* scheduler(void* arg) {
         }
 
 
+        // Re organize the list based on the schedulling type
+
+        if(info->schedulling == Schedulling::Priority){
+            sort(info->processes->begin(), info->processes->end(), [](const auto& a, const auto& b) {
+                return a->priority < b->priority;
+            });
+        }
+        else if(info->schedulling == Schedulling::FCFS){
+            
+            sort(info->processes->begin(), info->processes->end(), [](const auto& a, const auto& b) {
+                // Put "Executing" state at the end
+                if (a->state == State::Executing && b->state != State::Executing) {
+                    return false; // a is executing, so it should be placed after b
+                }
+                if (a->state != State::Executing && b->state == State::Executing) {
+                    return true; // b is executing, so it should be placed after a
+                }
+                return false;
+            });
+        }
+        else if(info->schedulling == Schedulling::Random){
+            shuffle(info->processes->begin(),info->processes->end() ,g);
+        }
+        else if(info->schedulling == Schedulling::SJF){
+            sort(info->processes->begin(), info->processes->end(), [](const auto& a, const auto& b) {
+                return a->size < b->size;
+            });
+        }
+   
     }
 
     return nullptr;
@@ -121,8 +141,8 @@ void * resourceManager(void * arg){
 
             info->ioRequests->erase(info->ioRequests->begin());
 
-            // Simulate a 0.1 ms delay
-            usleep(100000);
+            // Simulate a 0.05 ms delay
+            usleep(50000);
 
             cout << "Program " << req->process->id << ": " << req->msg << std::endl;          
              
@@ -135,8 +155,9 @@ void * resourceManager(void * arg){
 }
 
 int main(int argc, char* argv[]) {
-    if (argc < 2) {
-        cerr << "Usage: " << argv[0] << " <input_files>" << endl;
+    if (argc < 3) {
+        cerr << "Usage: " << argv[0] << " <input_files> <schedule type>" << endl;
+        cerr << "<schedule type>:\nFCFS = 1\nPriority = 2\nRandom = 3\nShortest Job first = 4" << endl;
         return 1;
     }
 
@@ -147,14 +168,18 @@ int main(int argc, char* argv[]) {
     }
 
     // Compile prograns
-    assembleFiles(argc, files, argv);
+    assembleFiles(argc-1, files, argv);
 
     MainMemory ram = MainMemory(2048, 2048);
-    int initProgram[argc];
+    int initProgram[argc-1];
+    int estimatives[argc-1];
+    for(int i =0; i < argc-1;i++){
+        estimatives[i] = 0;
+    }
     initProgram[0] = 0;
     
-    for (int i = 1; i < argc; i++) {
-        initProgram[i] = loadProgram(files[i], ram, initProgram[i - 1]);
+    for (int i = 1; i < argc-1; i++) {
+        initProgram[i] = loadProgram(files[i], ram, initProgram[i - 1], estimatives[i]);
     }
 
     auto scheduleInfo = make_unique<struct scheduleInfo>();
@@ -164,27 +189,25 @@ int main(int argc, char* argv[]) {
     scheduleInfo->queueLock = new mutex();
     scheduleInfo->shutdown = false;
     scheduleInfo->printLock = false;
+    scheduleInfo->schedulling = Schedulling(stoi(argv[argc-1]));
 
-    for (int i = 1; i < argc; i++) {
+    for (int i = 1; i < argc-1; i++) {
         auto pcb = make_unique<PCB>();
         pcb->baseAddr = initProgram[i - 1];
         pcb->finalAddr = initProgram[i];
-        pcb->quantum = QUANTUM;
+        pcb->size = estimatives[i];
+        pcb->timestamp = 0;
         pcb->id = i;
+        pcb->priority = i;
+        pcb->quantum = QUANTUM + (pcb->priority - argc-1 - i)*2;
         pcb->state = State::Ready;
         pcb->regBank.pc.value = initProgram[i - 1];
         scheduleInfo->processes->push_back(move(pcb));
     }
 
+    
     pthread_t threads[NUM_CORES + 2];
-
-    for (int i = 0; i < NUM_CORES; ++i) {
-        if (pthread_create(&threads[i], nullptr, coreManage, scheduleInfo.get()) != 0) {
-            cerr << "Error creating core thread " << i << endl;
-            return 1;
-        }
-    }
-
+    
     if (pthread_create(&threads[NUM_CORES], nullptr, scheduler, scheduleInfo.get()) != 0) {
         cerr << "Error creating scheduler thread" << endl;
         return 1;
@@ -194,9 +217,21 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    for (int i = 0; i < NUM_CORES; ++i) {
+        if (pthread_create(&threads[i], nullptr, coreManage, scheduleInfo.get()) != 0) {
+            cerr << "Error creating core thread " << i << endl;
+            return 1;
+        }
+    }
+
     // Join threads
     for (int i = 0; i < NUM_CORES + 2; i++) {
         pthread_join(threads[i], nullptr);
+    }
+
+    for(int i=0; i < scheduleInfo->processes->size(); i++){
+        auto& process = scheduleInfo->processes->at(i);
+        cout << "Process " << process->id << ": Timestamp: " << process->timestamp << endl;
     }
 
     return 0;

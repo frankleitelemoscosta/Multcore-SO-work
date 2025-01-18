@@ -15,7 +15,7 @@ std::string padName(const std::string& name) {
     return name + std::string(16 - name.length(), '#');
 }
 
-int loadProgram(std::string inputFile, MainMemory & ram, int initialAddress) {
+int loadProgram(std::string inputFile, MainMemory & ram, int initialAddress, int& estimative) {
     inputFile = "programs/" + inputFile + ".bin";
     std::ifstream file(inputFile);
     
@@ -28,6 +28,7 @@ int loadProgram(std::string inputFile, MainMemory & ram, int initialAddress) {
     std::unordered_map<std::string, int> variableAddresses;
     std::vector<std::string> instructions;
     int address = initialAddress; 
+    estimative = 0;
 
     std::string line;
 
@@ -90,6 +91,7 @@ int loadProgram(std::string inputFile, MainMemory & ram, int initialAddress) {
         else {
             instructions.push_back(trimmedLine);
             address += 1; 
+            estimative += 1;
           }
     }
 
@@ -101,6 +103,7 @@ int loadProgram(std::string inputFile, MainMemory & ram, int initialAddress) {
             if (pos != std::string::npos) {
                 // Substitute label with address
                 instruction.replace(pos, label.length(), std::bitset<16>(addr).to_string());
+                estimative += 10;
             }
         }
         for (const auto& [varName, addr] : variableAddresses) {
