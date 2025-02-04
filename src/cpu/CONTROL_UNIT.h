@@ -2,6 +2,7 @@
 #define CONTROL_UNIT_H
 
 #include "ALU.h"
+#include "Cache.h"
 #include "REGISTER_BANK.h"
 #include"HashRegister.h"
 #include"unordered_map"
@@ -14,7 +15,7 @@
 #include <cmath>
 #include <mutex>
 
-int Core(MainMemory &ram, PCB &process, vector<unique_ptr<ioRequest>>* ioRequests, bool &printLock);
+void Core(MainMemory &ram, PCB &process, vector<unique_ptr<ioRequest>>* ioRequests, bool &printLock, Cache &cache);
 
 struct Instruction_Data{
     string source_register;
@@ -22,6 +23,7 @@ struct Instruction_Data{
     string destination_register;
     string op;
     string addressRAMResult;
+    int rawInstrucion;
 
 };
 
@@ -36,6 +38,8 @@ struct ControlContext {
     int &counterForEnd;
     bool &endProgram;
     bool &endExecution;
+    Cache& cache;
+    int &clock;
 };
 
 struct Control_Unit{

@@ -1,10 +1,13 @@
-#include "./cpu/REGISTER_BANK.h"
-#include "./memory/MAINMEMORY.h"
-#include <mutex>
-#include <memory>
-
 #ifndef PCB_H
 #define PCB_H
+
+#include "./cpu/REGISTER_BANK.h"
+#include "./memory/MAINMEMORY.h"
+#include "./cpu/Cache.h"
+#include <mutex>
+#include <memory>
+#include <type_traits>
+#include <chrono>
 
  
 enum class State {
@@ -24,6 +27,8 @@ enum class Schedulling{
 struct PCB{
   int quantum;
   int timestamp;
+  chrono::steady_clock::time_point prevTime;
+  chrono::milliseconds timestampMS;
   int size;
   REGISTER_BANK regBank;
   State state;
@@ -46,6 +51,7 @@ struct scheduleInfo {
     bool shutdown;
     bool printLock;
     Schedulling schedulling;
+    Cache cache;
 };
 
 #endif

@@ -1,4 +1,5 @@
 #include "MAINMEMORY.h"
+#include <unistd.h>
 
 
 bool MainMemory::EmptyLine(int i) const
@@ -38,6 +39,9 @@ void MainMemory::EraseData(int iTarget, int jTarget)
 
 
 void MainMemory::WriteMem(const uint32_t address, const uint32_t data) {
+
+    // Simulate a 0.01 ms delay
+    usleep(10000);
     if (address >= NumOfi * NumOfj) {
         printf("Endereço inválido!\n");
         return;
@@ -48,6 +52,9 @@ void MainMemory::WriteMem(const uint32_t address, const uint32_t data) {
 }
 
 const uint32_t MainMemory::ReadMem(const uint32_t address) {
+    
+    // Simulate a 0.01 ms delay
+    usleep(10000);
     if (address >= NumOfi * NumOfj) {
         printf("Endereço inválido!\n");
         return -1; 

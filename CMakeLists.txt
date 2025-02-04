@@ -16,6 +16,8 @@ add_executable(CustomVonNeumannMachine
         src/cpu/REGISTER_BANK.cpp
         src/cpu/REGISTER_BANK.h
         src/cpu/ALU.cpp
+        src/cpu/Cache.cpp
+        src/cpu/Cache.h
         src/cpu/ALU.h
         src/memory/MEMORYCELL.cpp
         src/memory/MEMORYCELL.h

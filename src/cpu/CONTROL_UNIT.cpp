@@ -6,20 +6,20 @@
 #include <vector>
 
 
-int Core(MainMemory &ram, PCB &process, vector<unique_ptr<ioRequest>>* ioRequests, bool &printLock){
+void Core(MainMemory &ram, PCB &process, vector<unique_ptr<ioRequest>>* ioRequests, bool &printLock, Cache &cache){
     // load register and state from PCB
     auto &registers = process.regBank;
     
     Control_Unit UC;
     Instruction_Data data;
     
-    int clock = 0;
+    int clk = 0;
     int counterForEnd = 5;
     int counter = 0;
     bool endProgram = false;
     bool endExecution = false;
     
-    ControlContext context{registers, ram, *ioRequests, printLock, process, counter, counterForEnd, endProgram, endExecution};
+    ControlContext context{registers, ram, *ioRequests, printLock, process, counter, counterForEnd, endProgram, endExecution,cache,clk};
     
     while(context.counterForEnd > 0){
         if(context.counter >= 4 && context.counterForEnd >= 1){
@@ -44,9 +44,10 @@ int Core(MainMemory &ram, PCB &process, vector<unique_ptr<ioRequest>>* ioRequest
             UC.Fetch(context);
         }
         context.counter += 1;
-        clock += 1;
-
-        if(clock >= process.quantum || context.endProgram == true){
+        clk += 1;
+        process.timestamp += 1;
+        
+        if(clk >= process.quantum || context.endProgram == true){
             context.endExecution = true;
         }
         
@@ -59,7 +60,7 @@ int Core(MainMemory &ram, PCB &process, vector<unique_ptr<ioRequest>>* ioRequest
         context.process.state = State::Finished;
     }    
     
-    return clock;
+    return;
 }
 
 
@@ -101,6 +102,7 @@ void Control_Unit::Fetch(ControlContext &context){
 void Control_Unit::Decode(REGISTER_BANK &registers, Instruction_Data &data){
 
     const uint32_t instruction = registers.ir.read();
+    data.rawInstrucion = instruction;
     data.op = Identificacao_instrucao(instruction,registers);
     //cout << data.op << endl;
 
@@ -162,20 +164,36 @@ void Control_Unit::Memory_Acess(Instruction_Data &data, ControlContext &context)
     
     string nameregister = this->map.mp[data.target_register];
 
-    //aqui devem ser executadas as intruções de LOAD de fato
     if(data.op == "LW"){
         int decimal_value = ConvertToDecimalValue(stoul(data.addressRAMResult));
-        //aqui tem de ser feito a leitura na RAM
-        context.registers.acessoEscritaRegistradores[nameregister](context.ram.ReadMem(decimal_value));
-        //cout << "valor da memória RAM: " << registers.acessoLeituraRegistradores[nameregister]() << endl;
+        
+        cout << context.cache.find(decimal_value) << endl;
+        if(context.cache.find(decimal_value)){
+            context.registers.acessoEscritaRegistradores[nameregister](context.cache.access(decimal_value,context.clock));
+        }
+        else{
+            context.registers.acessoEscritaRegistradores[nameregister](context.ram.ReadMem(decimal_value));
+            context.cache.write(decimal_value,context.ram.ReadMem(decimal_value),context.clock);
+        }
     }
     if(data.op == "LA" || data.op == "LI"){
         int decimal_value = ConvertToDecimalValue(stoul(data.addressRAMResult));
+        
         context.registers.acessoEscritaRegistradores[nameregister](decimal_value);
     }
     else if(data.op == "PRINT" && data.target_register == ""){
         int decimalAddr = ConvertToDecimalValue(stoul(data.addressRAMResult));
-        auto value = context.ram.ReadMem(decimalAddr);
+        int value = 0;
+
+        cout << context.cache.find(decimalAddr) << endl;
+        if(context.cache.find(decimalAddr)){
+            value = context.cache.access(decimalAddr,context.clock);
+        }
+        else{
+            value = context.ram.ReadMem(decimalAddr);            
+            context.cache.write(decimalAddr,value,context.clock);
+        }
+        
         
         auto req = make_unique<ioRequest>();
         req->msg = to_string(value);
@@ -195,13 +213,17 @@ void Control_Unit::Write_Back(Instruction_Data &data, ControlContext &context){
 
     string nameregister = this->map.mp[data.target_register];
 
-    //aqui devem ocorrer qualquer uma das intruções de escrita na RAM
     if(data.op == "SW"){
-        //aqui tem de ser feito a escrita na RAM
         int decimal_value = ConvertToDecimalValue(stoul(data.addressRAMResult));
-        //cout << decimal_value << endl;
-        context.ram.WriteMem(decimal_value, context.registers.acessoLeituraRegistradores[nameregister]()) ;
-        //cout << "valor da memória RAM: " << memory.ReadMem(decimal_value) << endl;
+
+        cout << context.cache.find(decimal_value) << endl;
+        if (context.cache.find(decimal_value)){
+            context.cache.write(decimal_value,context.registers.acessoLeituraRegistradores[nameregister](),context.clock);
+        }
+        else{
+            context.ram.WriteMem(decimal_value, context.registers.acessoLeituraRegistradores[nameregister]());
+            context.cache.write(decimal_value,context.registers.acessoLeituraRegistradores[nameregister](),context.clock);
+        }        
     }
 
     return;

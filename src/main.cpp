@@ -4,10 +4,11 @@
 #include "./loader/loader.h"
 #include "./assembler/assembler.h"
 #include "./PCB.h"
+#include "./cpu/Cache.h"
 
 #include <unistd.h>
 #include <cstdlib>
-#include <time.h>
+#include <chrono>
 #include <pthread.h>
 #include <filesystem>
 #include <memory>
@@ -53,9 +54,12 @@ void* coreManage(void* arg) {
 
 
         if(currentProcess){
-            currentProcess->timestamp += Core(*info->ram, *currentProcess, info->ioRequests,info->printLock);
             
-
+            currentProcess->prevTime = chrono::steady_clock::now();
+            
+            Core(*info->ram, *currentProcess, info->ioRequests,info->printLock, info->cache);
+            currentProcess->timestampMS += chrono::duration_cast<chrono::milliseconds>(chrono::steady_clock::now() - currentProcess->prevTime);
+            
             lock_guard<mutex> lock(*info->queueLock);
             if (currentProcess->state == State::Executing) {
                 currentProcess->state = State::Ready;
@@ -155,9 +159,10 @@ void * resourceManager(void * arg){
 }
 
 int main(int argc, char* argv[]) {
-    if (argc < 3) {
+    if (argc < 4) {
         cerr << "Usage: " << argv[0] << " <input_files> <schedule type>" << endl;
-        cerr << "<schedule type>:\nFCFS = 1\nPriority = 2\nRandom = 3\nShortest Job first = 4" << endl;
+        cerr << "<Schedule type>:\nFCFS = 1\nPriority = 2\nRandom = 3\nShortest Job first = 4" << endl;
+        cerr << "<Cache strategy>:\nNo cache=0 \nLRU = 1\nFIFO = 2" << endl;
         return 1;
     }
 
@@ -168,20 +173,20 @@ int main(int argc, char* argv[]) {
     }
 
     // Compile prograns
-    assembleFiles(argc-1, files, argv);
+    assembleFiles(argc-2, files, argv);
 
     MainMemory ram = MainMemory(2048, 2048);
-    int initProgram[argc-1];
-    int estimatives[argc-1];
-    for(int i =0; i < argc-1;i++){
+    int initProgram[argc-2];
+    int estimatives[argc-2];
+    for(int i =0; i < argc-2;i++){
         estimatives[i] = 0;
     }
     initProgram[0] = 0;
     
-    for (int i = 1; i < argc-1; i++) {
+    for (int i = 1; i < argc-2; i++) {
         initProgram[i] = loadProgram(files[i], ram, initProgram[i - 1], estimatives[i]);
     }
-
+    
     auto scheduleInfo = make_unique<struct scheduleInfo>();
     scheduleInfo->ram = &ram;
     scheduleInfo->processes = new vector<unique_ptr<PCB>>();
@@ -189,17 +194,17 @@ int main(int argc, char* argv[]) {
     scheduleInfo->queueLock = new mutex();
     scheduleInfo->shutdown = false;
     scheduleInfo->printLock = false;
-    scheduleInfo->schedulling = Schedulling(stoi(argv[argc-1]));
+    scheduleInfo->schedulling = Schedulling(stoi(argv[argc-2]));
+    scheduleInfo->cache = Cache(stoi(argv[argc-1]),&ram);
 
-    for (int i = 1; i < argc-1; i++) {
+    for (int i = 1; i < argc-2; i++) {
         auto pcb = make_unique<PCB>();
         pcb->baseAddr = initProgram[i - 1];
         pcb->finalAddr = initProgram[i];
         pcb->size = estimatives[i];
-        pcb->timestamp = 0;
         pcb->id = i;
         pcb->priority = i;
-        pcb->quantum = QUANTUM + (pcb->priority - argc-1 - i)*2;
+        pcb->quantum = QUANTUM + (pcb->priority - argc-2 - i)*2;
         pcb->state = State::Ready;
         pcb->regBank.pc.value = initProgram[i - 1];
         scheduleInfo->processes->push_back(move(pcb));
@@ -231,7 +236,7 @@ int main(int argc, char* argv[]) {
 
     for(int i=0; i < scheduleInfo->processes->size(); i++){
         auto& process = scheduleInfo->processes->at(i);
-        cout << "Process " << process->id << ": Timestamp: " << process->timestamp << endl;
+        cout << "Process " << process->id << ": Timestamp (Clock): " << process->timestamp <<"  Timestamp (MS): " <<  process->timestampMS.count() << endl;
     }
 
     return 0;
